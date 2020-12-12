@@ -18,7 +18,7 @@ except ValueError:
 # test whether the user is within a box (430000, 80000) and (465000, 95000).
 inside = False
 
-# code for testing that user is within the box
+# code for testing that user is within the (430000, 80000) and (465000, 95000)
 
 if inside is False:
     print("Unable to assist in finding highest point of land.")
