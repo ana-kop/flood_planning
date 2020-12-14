@@ -18,9 +18,19 @@ except ValueError:
 # test whether the user is within a box (430000, 80000) and (465000, 95000).
 inside = False
 
-
 # code for testing that user is within the (430000, 80000) and (465000, 95000)
-
 
 if inside is False:
     print("Unable to assist in finding highest point of land.")
+
+import rasterio.plot
+path = "/Users/ak/Desktop/a_2/Material/"
+background = rasterio.open(path + "/background/raster-50k_2724246.tif")
+elevation = rasterio.open(path + "/elevation/SZ.asc")
+# count = 1 // CRS = BNG
+#rasterio.plot.show(elevation)
+
+#import ITN data
+import pandas
+itn = pandas.read_json(path + "itn/solent_itn.json")
+print(itn.head())
