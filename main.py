@@ -40,3 +40,6 @@ inside = False
 
 if inside is False:
     print("Unable to assist in finding highest point of land.")
+
+
+# Task 3
