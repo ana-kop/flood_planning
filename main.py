@@ -207,7 +207,7 @@ ax.plot(highest_points[0].x, highest_points[0].y, '^', color='black', markersize
 
 # plot 2km scale bar:
 ax.plot([ (maxx-2500), (maxx-500)], [(miny+475),(miny+475)], color="black", linewidth=1.5)
-plt.text(maxx-1750, miny+125, "2km", fontsize=8)    #scale bar label
+plt.text(maxx-1750, miny+125, "2km", fontsize=8, fontweight='bold')    #scale bar label
 
 # plot legend
 plt.legend(bbox_to_anchor=(1.025, 1), loc='upper left')
