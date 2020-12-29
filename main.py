@@ -66,41 +66,36 @@ location = Point(x,y)          # User location
 buf = location.buffer(5000)             # create 5km buffer polygon.
 
 
+''' TASK 2: 
+ Find highest point within 5km radius
+'''
 
-
-# Task 2: Find highest point within 5km radius
-# https://rasterio.readthedocs.io/en/latest/topics/masking-by-shapefile.html
-
-gdf = gpd.GeoDataFrame({'geometry': buf}, index=[0], crs=osgb36)  # put buffer polygon into geodataframe (gdf)
+buffer_gdf = gpd.GeoDataFrame({'geometry': buf}, index=[0], crs=osgb36)  # put buffer polygon into geodataframe (gdf)
 
 # mask elevation with buffer polygon & crop. Points outside of the buffer set to value of -100
-elevation_out_image, out_transform = rasterio.mask.mask(elevation,gdf['geometry'],nodata=-100,crop=True, filled=True)
+elevation_output_image, output_transform = rasterio.mask.mask(elevation,buffer_gdf['geometry'],\
+                                                              nodata=-100,crop=True, filled=True)
 out_meta = elevation.meta       # match the output image metadata with elevation metadata
 out_meta.update({"driver": "GTiff",     # update metadata for elevation output img
-                 "height": elevation_out_image.shape[1],
-                 "width": elevation_out_image.shape[2],
-                 "transform": out_transform})
+                 "height": elevation_output_image.shape[1],
+                 "width": elevation_output_image.shape[2],
+                 "transform": output_transform})
 
-with rasterio.open(path+"/output.tif", "w", **out_meta) as dest:   # write file
-    dest.write(elevation_out_image)
+with rasterio.open(path+"/elevation_output.tif", "w", **out_meta) as dest:   # write file
+    dest.write(elevation_output_image)
 
 elevation.close()
 
-radius = rasterio.open(path+"/output.tif", "r")                 # 5km radius image file opened in read mode
-elevation_array= radius.read(1)                                 # radius read as numpy array
+radius = rasterio.open(path+"/elevation_output.tif", "r")       # 5km radius image file opened in read mode
+radius_array= radius.read(1)                                    # radius read as numpy array
 
-max_height = np.max(elevation_array)   # find max value within buffer
-
-pix_location_y, pix_location_x = np.where(elevation_array == max_height)   # finds row/columns of pixel value
-
-highest_points = []     # used when there are multiple 'highest points' with the same elevation in the 5km radius
-                        # we can delete this if we just want to use highest_points[0] ???
+max_height = np.max(radius_array)   # find max value within buffer
+pix_location_y, pix_location_x = np.where(radius_array == max_height)   # finds row/columns of pixel value
+highest_points = []
 
 for i in range (len(pix_location_x)):
     bng_pixel_location = radius.transform*(pix_location_x[i],pix_location_y[i]) # transforms (row,column) into (x,y)
-    print (bng_pixel_location)
-    print (type(bng_pixel_location))
-    high_point = Point(bng_pixel_location) # create shapely point where
+    high_point = Point(bng_pixel_location) # create shapely point at highest point
     highest_points.append (high_point)    # append to list
 
 
@@ -139,8 +134,10 @@ for i in range (len(pix_location_x)):
 
 
 
-
-# TASK 5: Plotting the data on a map
+''' Task 5: 
+Plot the user’s starting point, the highest point within the buffer and the shortest route
+calculated. Add a color-bar, north arrow, scale bar and a legend
+'''
 
 # bounding box dimensions for plotting the 10km x 10km background file:
 minx = location.x - 5000  #5km in each direction
@@ -149,9 +146,9 @@ miny = location.y - 5000
 maxy = location.y + 5000
 bbox = box(minx,miny,maxx, maxy)
 
-bbox_gdf = gpd.GeoDataFrame({'geometry': bbox}, index=[0], crs=osgb36) # puts bbox into Geodataframe
+bbox_gdf = gpd.GeoDataFrame({'geometry': bbox}, index=[0], crs=osgb36) # puts bounding box into Geodataframe
 
-# crop background image based on bounding box:
+# crop the background image to 10km x 10km using bounding box:
 cropped_background_img, background_transform = rasterio.mask.mask(background,bbox_gdf['geometry'],crop=True)
 background_meta = background.meta       # match cropped background img metadata with original background metadata
 
@@ -165,17 +162,15 @@ with rasterio.open(path+"/background_output.tif", "w", **background_meta) as des
 
 background.close()
 
-new_background = rasterio.open(path+"/background_output.tif", "r")      # opens cropped background
-background_extent = plotting_extent(new_background) # extent used for plotting
+cropped_background = rasterio.open(path+"/background_output.tif", "r")   # opens cropped background
+background_extent = plotting_extent(cropped_background) # extent used for plotting
 
-
-# # https://stackoverflow.com/questions/17170229/setting-transparency-based-on-pixel-values-in-matplotlib
 
 # MASKING THE ELEVATION FILE TO PLOT ONLY THE CIRCULAR BUFFER
-circle = np.ma.masked_where(elevation_array == -100, elevation_array)
+circle = np.ma.masked_where(radius_array == -100, radius_array)
 
-# Masking background sea level values to re-colour them
-removed_sea = np.ma.masked_where(new_background.read(1)==65, new_background.read(1))
+# Masking background sea level values to re-colour
+removed_sea = np.ma.masked_where(cropped_background.read(1)==65, cropped_background.read(1))
 
 
 # PLOT EVERYTHING:
