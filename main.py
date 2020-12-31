@@ -69,13 +69,13 @@ buf = location.buffer(5000)             # Create 5km buffer polygon.
  Find highest point within 5km radius
 '''
 
-buffer_gdf = gpd.GeoDataFrame({'geometry': buf}, index=[0], crs=osgb36)  # put buffer polygon into geodataframe (gdf)
+buffer_gdf = gpd.GeoDataFrame({'geometry': buf}, index=[0], crs=osgb36)  # Put buffer polygon into geodataframe (gdf)
 
-# mask elevation with buffer polygon & crop. Points outside of the buffer set to value of -100
+# Mask elevation with buffer polygon & crop. Points outside of the buffer set to value of -100
 elevation_output_image, output_transform = rasterio.mask.mask(elevation, buffer_gdf['geometry'],
                                                               nodata=-100, crop=True, filled=True)
 out_meta = elevation.meta       # match the output image metadata with elevation metadata
-out_meta.update({"driver": "GTiff",     # update metadata for elevation output img
+out_meta.update({"driver": "GTiff",     # update metadata for elevation output image
                  "height": elevation_output_image.shape[1],
                  "width": elevation_output_image.shape[2],
                  "transform": output_transform})
@@ -92,10 +92,21 @@ max_height = np.max(radius_array)   # Find max value within buffer
 pix_location_y, pix_location_x = np.where(radius_array == max_height)   # Finds row/columns of pixel value
 highest_points = []
 
+
+def test_transformation(point):  # Ensure transformed coordinates fall within the bounds of the elevation file (BNG)
+    if point.x < 42500 or point.x > 470000 or point.y < 75000 or point.y > 100000:
+        return True
+
+
 for i in range(len(pix_location_x)):
     bng_pixel_location = radius.transform*(pix_location_x[i], pix_location_y[i])  # Transforms (row,column) into (x,y)
     high_point = Point(bng_pixel_location)  # Create shapely point at highest point
-    highest_points.append(high_point)    # Append to list
+    if test_transformation(high_point):
+        raise Exception("Transformation Error: The determined coordinates do not fall within the bounds of the input \
+         file. Please ensure all files use the British National Grid CRS. ")
+    else:
+        highest_points.append(high_point)
+
 
 
 #
@@ -138,7 +149,6 @@ Plot the user’s starting point, the highest point within the buffer and the sh
 calculated. Add a color-bar, north arrow, scale bar and a legend
 '''
 
-
 minx = location.x - 5000  # Bounding box dimensions for plotting the 10kmx10km background file
 maxx = location.x + 5000
 miny = location.y - 5000
@@ -165,12 +175,10 @@ cropped_background = rasterio.open(path+"/background_output.tif", "r")   # opens
 background_extent = plotting_extent(cropped_background)  # background_extent used for plotting
 
 
-# MASKING THE ELEVATION FILE TO PLOT ONLY THE CIRCULAR BUFFER
-circle = np.ma.masked_where(radius_array == -100, radius_array)
+circle = np.ma.masked_where(radius_array == -100, radius_array)  # MASKING ELEVATION FILE TO PLOT CIRCULAR BUFFER
 
 # Masking background sea level values to re-colour
 removed_sea = np.ma.masked_where(cropped_background.read(1) == 65, cropped_background.read(1))
-
 
 # PLOT EVERYTHING:
 fig, ax = plt.subplots(figsize=(8, 6))
