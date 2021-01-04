@@ -1,13 +1,14 @@
-import pandas
 import json
 import networkx as nx
 import rasterio.mask
 from rasterio.plot import plotting_extent
 import matplotlib.pyplot as plt
 import geopandas as gpd
-from shapely.geometry import Point, MultiPoint, box, LineString
+from shapely.geometry import Point, MultiPoint, Polygon, box, LineString, MultiLineString
+from shapely.ops import linemerge
 import shapely.ops
 import numpy as np
+from pyproj import Transformer
 
 """Import data"""
 # Elevation data
@@ -16,11 +17,6 @@ background = rasterio.open(path + "/background/raster-50k_2724246.tif")
 elevation = rasterio.open(path + "/elevation/SZ.asc")
 # count = 1 // CRS = BNG
 # rasterio.plot.show(elevation)
-
-# ITN data
-itn = pandas.read_json(path + "itn/solent_itn.json")
-# print(itn['roadlinks'].head())
-# print(list(itn))
 
 # Nodes and links data
 nodes = gpd.read_file(path + "roads/nodes.shp")
@@ -33,11 +29,11 @@ links = gpd.read_file(path + "roads/links.shp")
 
 """  Task 1:
 Ask the user to input their current location as a British National Grid coordinate (easting and northing),
-test whether the user is within a box (430000, 80000) and (465000, 95000); quit program if not
+test whether the user is within a box (430000, 80000) and (465000, 9500); quit program if not
 """
 
 # print("This program will help you find the the quickest route to walk to the highest point of land "
-#      "within a 5km radius.")
+#      "within a 5km radius from your current location.")
 #
 # try:
 #    x = float(input("Please enter the Easting coordinate of your location: "))
@@ -51,22 +47,24 @@ test whether the user is within a box (430000, 80000) and (465000, 95000); quit 
 # except ValueError:
 #    y = float(input("Please input a NUMBER. Please enter the Y-coordinate of your point: "))
 #
-# # test whether the user is within a box (430000, 80000) and (465000, 95000).
-# inside = True
-#
-# # code for testing that user is within the (430000, 80000) and (465000, 95000)
-#
-# if inside is False:
-#    print("Unable to assist in finding highest point of land.")
+# test whether the user is within a box (430000, 80000) and (465000, 95000) - from Yolanda
+# if x <= 430000 or x >= 465000 or y <= 80000 or y >= 95000:
+#     print("Unable to assist in finding highest point of land.")
+#     exit()
+# else:
+#     print("Thanks for inputting")
 
 # x = 449923.625
 # y = 89243.008
 
+x = 439619
+y = 85800
+
 # x = 433600 # - problem
 # y = 86600
 
-x = 451700
-y = 76700
+# x = 449000
+# y = 96000
 
 #bottom = 451700, 76700
 #top = 449000, 96000
@@ -74,18 +72,9 @@ y = 76700
 #left = 433600, 86600
 #aldo's = 439619, 85800
 
-
-# from Yolanda
-# test whether the user is within a box (430000, 80000) and (465000, 95000).
-# if x <= 430000 or x >= 465000 or y <= 80000 or y >= 95000:
-#     print("Unable to assist in finding highest point of land because it's not within a box (430000, 80000) and "
-#           "(465000, 95000).")
-#     exit()
-# else:
-#     print("Thanks for inputting")
-
 user_location = Point(x, y)  # Example user location
 buf = user_location.buffer(5000)  # create 5km buffer polygon.
+
 
 """Task 2: Find highest point within 5km radius
 """
@@ -123,8 +112,8 @@ for i in range(len(pix_location_x)):
     bng_pixel_location = radius.transform*(pix_location_x[i], pix_location_y[i])  # Transforms (row,column) into (x,y)
     high_point = Point(bng_pixel_location)  # Create shapely point at highest point
     if test_transformation(high_point):
-        raise Exception("Transformation Error: The determined coordinates do not fall within the bounds of the input \
-         file. Please ensure all files use the British National Grid CRS. ")
+        raise Exception("Transformation Error: The determined coordinates do not fall within the bounds of the input "
+                        "file. Please ensure all files use the British National Grid CRS. ")
     else:
         highest_points.append(high_point)
 
@@ -191,9 +180,10 @@ json structure
 }
 """
 
-# Creating an empty multidigraph object
+# Create an empty MultiDiGraph structure
 G = nx.MultiDiGraph()
 
+# Load the ITN data
 with open(path + "itn/solent_itn.json") as f:
     road_links = json.load(f)['roadlinks']
 
@@ -206,8 +196,8 @@ for i, link_fid in enumerate(road_links):
     for i, coord in enumerate(road_coords):
         x = coord[0]
         y = coord[1]
-        el = list(elevation.sample([(x, y)]))[0][0]
-        road_coords_elev.append(el)
+        elev = list(elevation.sample([(x, y)]))[0][0]
+        road_coords_elev.append(elev)
 
     elev = 0
     for i in range(len(road_coords_elev)-1):
@@ -220,10 +210,10 @@ for i, link_fid in enumerate(road_links):
             pass
 
     # Formula to calculate the weight of the node - i.e. the time required to cover it according to the Naismith's rule.
-    time_to_cover = ((3 * length) / 250) + (elev / 10)
+    time_to_walk = ((3 * length) / 250) + (elev / 10)
 
     # Adding edges with their corresponding weights
-    G.add_edge(road_links[link_fid]['start'], road_links[link_fid]['end'], fid=link_fid, weight=time_to_cover)
+    G.add_edge(road_links[link_fid]['start'], road_links[link_fid]['end'], fid=link_fid, weight=time_to_walk)
 
     # Calculate weights and add edges in the opposite direction
     road_coords_elev.reverse()
@@ -236,24 +226,27 @@ for i, link_fid in enumerate(road_links):
         else:
             pass
 
-    time_to_cover = ((3 * length) / 250) + (elev / 10)
-    G.add_edge(road_links[link_fid]['end'], road_links[link_fid]['start'], fid=link_fid, weight=time_to_cover)
+    time_to_walk = ((3 * length) / 250) + (elev/10)
+    G.add_edge(road_links[link_fid]['end'], road_links[link_fid]['start'], fid=link_fid, weight=time_to_walk)
 
 # Finding the shortest path using the dijkstra algorithm from networkx.
-the_path = nx.dijkstra_path(G, nearest_node_user, nearest_node_highground, weight="weight")
+try:
+    shortest_path = nx.dijkstra_path(G, nearest_node_user, nearest_node_highground, weight="weight")
+except nx.NetworkXNoPath:
+    print('Unable to assist in finding the shortest path.')
+    exit()
 
-# Converting the shortest path from FID codes to a linestring of coordinates
-with open(path + "itn/solent_itn.json") as file:
-    roadnodes = json.load(file)['roadnodes']
-
-coords_path = []  # list of road points
-for i in range(len(the_path)):
-    osgb_code = the_path[i]
-    coords = roadnodes[osgb_code]['coords']
-    coords = tuple(coords)
-    coords_path.append(coords)
-shortest_path = LineString(coords_path)
-
+# Converting the FIDs returned by the algorithm into a linestring for plotting; getting path length.
+# https://gis.stackexchange.com/questions/223447/weld-individual-line-segments-into-one-linestring-using-shapely
+shortest_path_lines = []
+path_length = 0
+for i, c in enumerate(shortest_path[:-1]):
+    fid = G.get_edge_data(c, shortest_path[i + 1])[0]['fid']
+    coords = road_links[fid]['coords']
+    shortest_path_lines.append(LineString(coords))
+    path_length = path_length + road_links[fid]['length']
+shortest_path_final = linemerge(MultiLineString(shortest_path_lines))
+path_length = round(path_length/1000, 3)
 
 """Task 5: Output
 """
@@ -284,16 +277,14 @@ background.close()
 cropped_background = rasterio.open(path+"/background_output.tif", "r")   # opens cropped background
 background_extent = plotting_extent(cropped_background)  # background_extent used for plotting
 
-
 circle = np.ma.masked_where(radius_array == -100, radius_array)  # MASKING ELEVATION FILE TO PLOT CIRCULAR BUFFER
 
 # Masking background sea level values to re-colour
 removed_sea = np.ma.masked_where(cropped_background.read(1) == 65, cropped_background.read(1))
 
-
 # PLOT EVERYTHING:
 fig, ax = plt.subplots(figsize=(8, 6))
-ax.set_facecolor("paleturquoise")       # Sets sea colour
+ax.set_facecolor("paleturquoise")  # Sets sea colour
 ax.imshow(removed_sea, cmap="terrain", extent=background_extent)  # Plots cropped background
 elevation_radius = ax.imshow(circle, alpha=0.55, aspect=1, extent=background_extent, cmap="viridis")  # Plots elevation
 ax.plot(user_location.x, user_location.y, 'o', color='tomato', markersize=8, label="User Location")
@@ -305,10 +296,13 @@ plt.arrow((minx+500), (maxy-1200), 0, 950, width=120, head_length=300, length_in
 ax.plot([(maxx-2500), (maxx-500)], [(miny+475), (miny+475)], color="black", linewidth=1.5)  # Plot 2km scale bar:
 plt.text(maxx-1750, miny+125, "2km", fontsize=8, fontweight='bold')   # Plot scale bar label
 
-x, y = shortest_path.xy
-ax.plot(x, y, color='black', zorder=1, label="shortest path")
+x, y = shortest_path_final.xy
+ax.plot(x, y, color='black', linewidth=2, zorder=1, label="shortest path")
 
 plt.legend(bbox_to_anchor=(1.025, 1), loc='upper left')
 plt.tight_layout()  # Fit everything inside the figure
 plt.rcParams.update({'figure.autolayout': True})
 plt.show()
+
+print('Please proceed to the highground using the route displayed on the map. '
+      'The route is ' + str(path_length) + ' km long.')
