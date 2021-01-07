@@ -94,7 +94,7 @@ def main(background_f, elevation_f, nodes_f, itn_f, allow_near_edge=False, input
     # y = 76700
     # user_location = Point(x, y)
 
-    # Test whether the user is within a box (430000, 80000) and (465000, 95000) - from Yolanda
+    # Test whether the user is within a box (430000, 80000) and (465000, 95000)
     if allow_near_edge is False:
         if user_location.x <= 430000 or user_location.x >= 465000 \
                 or user_location.y <= 80000 or user_location.y >= 95000:
