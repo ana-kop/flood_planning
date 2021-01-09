@@ -131,10 +131,10 @@ def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=Fals
                      "width": elevation_output_image.shape[2],
                      "transform": output_transform})
 
-    with rasterio.open(path + "/elevation_output.tif", "w", **out_meta) as dest:  # write file
+    with rasterio.open("Material/elevation_output.tif", "w", **out_meta) as dest:  # write file
         dest.write(elevation_output_image)
 
-    radius = rasterio.open(path + "/elevation_output.tif", "r")  # 5km radius image file opened in read mode
+    radius = rasterio.open("Material/elevation_output.tif", "r")  # 5km radius image file opened in read mode
     radius_array = radius.read(1)  # radius read as numpy array
 
     max_height = np.max(radius_array)  # Find max value within buffer
@@ -296,28 +296,28 @@ def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=Fals
                             "width": cropped_background_img.shape[2],
                             "transform": background_transform})
 
-    with rasterio.open(path + "/background_output.tif", "w", **background_meta) as dest:  # write file
+    with rasterio.open("Material/background_output.tif", "w", **background_meta) as dest:  # write file
         dest.write(cropped_background_img)
     background.close()
 
-    cropped_background = rasterio.open(path + "/background_output.tif", "r")  # opens cropped background
+    cropped_background = rasterio.open("Material/background_output.tif", "r")  # opens cropped background
     background_extent = plotting_extent(cropped_background)  # background_extent used for plotting
     circle = np.ma.masked_where(radius_array == -100, radius_array)  # MASKING ELEVATION FILE TO PLOT CIRCULAR BUFFER
 
     # Masking background sea level values to re-colour
     removed_sea = np.ma.masked_where(cropped_background.read(1) == 65, cropped_background.read(1))
 
-    # PLOT EVERYTHING:
+    # Plot everything:
     fig, ax = plt.subplots(figsize=(8, 6))
     ax.set_facecolor("paleturquoise")  # Sets sea colour
     ax.imshow(removed_sea, cmap="terrain", extent=background_extent)  # Plots cropped background
 
     if allow_near_edge is False:  # Plots elevation if inside the box
-        elevation_radius = ax.imshow(circle, alpha=0.55, aspect=1, extent=background_extent, cmap="viridis")
+        elevation_radius = ax.imshow(circle, alpha=0.5, aspect=1, extent=background_extent, cmap="viridis")
         cbar = plt.colorbar(elevation_radius, orientation='vertical', fraction=0.025, pad=0.12)
         cbar.set_label('Elevation (m)')
 
-    ax.plot(user_location.x, user_location.y, 'o', color='tomato', markersize=8, label="User Location")
+    ax.plot(user_location.x, user_location.y, 'o', color='orangered', markersize=8, label="User Location")
     ax.plot(highest_points[0].x, highest_points[0].y, '^', color='black', markersize=8, label="Highest Point")
     plt.arrow((minx + 500), (maxy - 1200), 0, 950, width=120, head_length=300, length_includes_head=True,
               facecolor="black", edgecolor="black")  # Plot north arrow
@@ -339,12 +339,11 @@ def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=Fals
 
 
 if __name__ == "__main__":
-    path = "/Users/ak/Desktop/a_2/Material/"
-    background_file = path + "/background/raster-50k_2724246.tif"
-    elevation_file = path + "/elevation/SZ.asc"
-    nodes_file = path + "roads/nodes.shp"
-    itn_file = path + "itn/solent_itn.json"
-    shape_file = path + "shape/isle_of_wight.shp"
+    background_file = "Material/background/raster-50k_2724246.tif"
+    elevation_file = "Material/elevation/SZ.asc"
+    nodes_file = "Material/roads/nodes.shp"
+    itn_file = "Material/itn/solent_itn.json"
+    shape_file = "Material/shape/isle_of_wight.shp"
 
     main(background_file, elevation_file, nodes_file, itn_file, shape_file,
-         island_checker=True, allow_near_edge=True, input_options=False)
+         island_checker=False, allow_near_edge=False, input_options=False)
