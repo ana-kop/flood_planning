@@ -14,19 +14,15 @@ import what3words
 
 def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=False, allow_near_edge=False,
          input_options=False):
-    """Import data"""
-    background = rasterio.open(background_f)
-    elevation = rasterio.open(elevation_f)
+    """Definition of the main() function for the program"""
 
-    """  Task 1:
-    Ask the user to input their current location as a British National Grid coordinate (easting and northing),
-    test whether the user is within a box (430000, 80000) and (465000, 9500); quit program if not
-    """
+    """Task 1: User Input"""
 
-    if input_options is False:
+    if input_options is False:  # The basic version of accepting user input
         print("This program will help you find the the quickest route to walk to the highest point of land "
               "within a 5km radius from your current location.")
 
+        # Ask user to input their location and make a Point object with the coordinates
         try:
             x = float(input("Please enter the Easting coordinate of your location: "))
         # If user entered not a number and there is ValueError, then:
@@ -35,14 +31,14 @@ def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=Fals
 
         try:
             y = float(input("Please enter the Northing coordinate of your location: "))
-        # If user entered not a number and there is ValueError, then:
         except ValueError:
             y = float(input("Please input a NUMBER. Please enter the Y-coordinate of your point: "))
 
         user_location = Point(x, y)
 
-    # CREATIVITY TASK: giving user more options for how they would like to input their location
+    # CREATIVITY TASK EXTENSION: giving user more options for inputting their location
     if input_options is True:
+        # Ask user how they would like to input their location
         option = float(input('How would you like to enter your coordinates? '
                              ' \nFor British National Grid, enter 1; for latitude and longitude, enter 2;'
                              ' for what3words, enter 3: '))
@@ -50,7 +46,6 @@ def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=Fals
         if option == 1:
             try:
                 x = float(input("Please enter the Easting coordinate of your location: "))
-            # If user entered not a number and there is ValueError, then:
             except ValueError:
                 x = float(input("Please input a NUMBER. Please enter the X-coordinate of your point: "))
 
@@ -74,6 +69,7 @@ def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=Fals
             except ValueError:
                 lon_y = float(input("Please input a NUMBER. Please enter the Y-coordinate of your point: "))
 
+            # Transform the lat/lon coordinates into BNG using Transformer from pyproj
             output = transformer.transform(lat_x, lon_y)
             user_location = Point(output)
 
@@ -84,14 +80,15 @@ def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=Fals
             words = word_1 + '.' + word_2 + '.' + word_3
 
             geocoder = what3words.Geocoder("JWCSJO0N")  # Inputting the API key
+            # Transform the 3 words into  lat/lon coordinates using the what3words API
+            # https://developer.what3words.com/tutorial/python
             res = geocoder.convert_to_coordinates(words)
-            # Example - strike.resting.pythons
             x = res['square']['northeast']['lng']
             y = res['square']['northeast']['lat']
-            output = transformer.transform(x, y)
+            output = transformer.transform(x, y)  # Transform the lat/lon coordinates into BNG using Transformer
             user_location = Point(output)
 
-    # Test whether the user is within a box (430000, 80000) and (465000, 95000) - from Yolanda
+    # Test whether the user is within a box (430000, 80000) and (465000, 95000)
     if allow_near_edge is False:
         if user_location.x <= 430000 or user_location.x >= 465000 \
                 or user_location.y <= 80000 or user_location.y >= 95000:
@@ -104,44 +101,47 @@ def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=Fals
         print("Input accepted, finding the shortest route to high ground..."
               " \n(Note: currently unable to display elevation map; only the shortest route will be displayed.)")
 
-    # CREATIVITY TASK: testing whether user is in the sea
+    # CREATIVITY TASK: testing whether user is outside the Isle of Wight
     if island_checker is True:
-        island_gpd = gpd.read_file(shape_f)
-        island = island_gpd['geometry'][0]
+        island_gpd = gpd.read_file(shape_f)  # Read in the Isle of Wight shapefile
+        island = island_gpd['geometry'][0]  # Get the MultiPolygon object with the boundary
         if island.contains(user_location) is False:
             print('Looks like you are not on the Isle of Wight. '
                   'This app is only intended to be used on the Isle of Wight.')
             exit()
 
-    """Task 2: Find highest point within 5km radius
-    """
+    """Task 2: Highest Point Identification"""
+    # Importing data
+    background = rasterio.open(background_f)
+    elevation = rasterio.open(elevation_f)
 
     # https://rasterio.readthedocs.io/en/latest/topics/masking-by-shapefile.html
-    buf = user_location.buffer(5000)  # create 5km buffer polygon.
-    buffer_gdf = gpd.GeoDataFrame({'geometry': buf}, index=[0],
-                                  crs="EPSG:27700")  # Put buffer polygon into geodataframe
+    buf = user_location.buffer(5000)  # create 5km buffer polygon
+    # Put buffer polygon into geodataframe
+    buffer_gdf = gpd.GeoDataFrame({'geometry': buf}, index=[0], crs="EPSG:27700")
 
-    # Mask elevation with buffer polygon & crop. Points outside of the buffer set to value of -100
+    # Mask elevation with buffer polygon and crop; points outside of the buffer set to value of -100
     elevation_output_image, output_transform = rasterio.mask.mask(elevation, buffer_gdf['geometry'],
                                                                   nodata=-100, crop=True, filled=True)
 
-    out_meta = elevation.meta  # match the output image metadata with elevation metadata
-    out_meta.update({"driver": "GTiff",  # update metadata for elevation output image
+    out_meta = elevation.meta  # Match the output image metadata with elevation metadata
+    out_meta.update({"driver": "GTiff",  # Update metadata for elevation output image
                      "height": elevation_output_image.shape[1],
                      "width": elevation_output_image.shape[2],
                      "transform": output_transform})
 
-    with rasterio.open("Material/elevation_output.tif", "w", **out_meta) as dest:  # write file
+    with rasterio.open("Material/elevation_output.tif", "w", **out_meta) as dest:  # Write file
         dest.write(elevation_output_image)
 
     radius = rasterio.open("Material/elevation_output.tif", "r")  # 5km radius image file opened in read mode
-    radius_array = radius.read(1)  # radius read as numpy array
+    radius_array = radius.read(1)  # Read radius as numpy array
 
-    max_height = np.max(radius_array)  # Find max value within buffer
+    max_height = np.max(radius_array)  # Find maximum value within buffer
     pix_location_y, pix_location_x = np.where(radius_array == max_height)  # Finds row/columns of pixel value
     highest_points = []
 
-    def test_transformation(point):  # Ensure transformed coordinates fall within the bounds of the elevation file (BNG)
+    def test_transformation(point):
+        """Function to check that transformed coordinates fall within the bounds of the elevation file"""
         if point.x < 42500 or point.x > 470000 or point.y < 75000 or point.y > 100000:
             return True
 
@@ -156,14 +156,12 @@ def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=Fals
         else:
             highest_points.append(high_point)
 
-    """Task 3.
-    Identify the nearest ITN node to the user and the nearest ITN node to the highest point identified in Task 2.
-    """
+    """Task 3: Nearest Integrated Transport Network"""
 
     # Read in the nodes shapefile into a gdf
     nodes = gpd.read_file(nodes_f)
 
-    # For every node in the nodes gdf, check if it is less than 5 km away from the user_location and
+    # For every node in the nodes gdf, check if it is less than 5 km away from the user_location;
     # append it to the nodes_list if it is.
     # https://automating-gis-processes.github.io/2017/lessons/L3/nearest-neighbour.html
     nodes_list = []
@@ -188,10 +186,8 @@ def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=Fals
     nearest_node_user_coord = nearest_itn(user_location, nodes_multipoint)
     nearest_node_highground_coord = nearest_itn(highest_points[0], nodes_multipoint)
 
-    # Find the FID of a given ITN node
-    # https://www.geeksforgeeks.org/different-ways-to-iterate-over-rows-in-pandas-dataframe/
-
-    # Make a dictionary that allows mapping between the coordinate location of an ITN and its FID
+    # Finding the FID of a given ITN node: make a dictionary that allows mapping between the coordinate
+    # location of an ITN and its FID
     itn_fid_dict = {}
     for i in nodes.index:
         geom = nodes['geometry'][i]
@@ -208,8 +204,7 @@ def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=Fals
     nearest_node_user = coord_to_fid(nearest_node_user_coord)
     nearest_node_highground = coord_to_fid(nearest_node_highground_coord)
 
-    """ Task 4: Shortest path.
-    """
+    """Task 4: Shortest Path"""
 
     # Create an empty MultiDiGraph structure
     G = nx.MultiDiGraph()
@@ -239,10 +234,10 @@ def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=Fals
                 elev = elev + (b - a)
 
         # Formula to calculate the weight of the node
-        # - i.e. the time required to cover it according to the Naismith's rule.
+        # - i.e. the time required to walk it according to the Naismith's rule.
         time_to_walk = ((3 * length) / 250) + (elev / 10)
 
-        # Adding edges with their corresponding weights
+        # Adding edges with their corresponding weights to the graph
         G.add_edge(road_links[link_fid]['start'], road_links[link_fid]['end'], fid=link_fid, weight=time_to_walk)
 
         # Calculate weights and add edges in the opposite direction
@@ -275,9 +270,8 @@ def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=Fals
     # Find the length of the shortest path
     path_length = round(path_length / 1000, 2)
 
-    """Task 5: Output
-    """
-    # bounding box dimensions (for plotting the background file):
+    """Task 5: Map Plotting"""
+    # Bounding box dimensions (for plotting the background file):
     minx = user_location.x - 5000  # 5km in each direction
     maxx = user_location.x + 5000
     miny = user_location.y - 5000
@@ -291,7 +285,7 @@ def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=Fals
     cropped_background_img, background_transform = rasterio.mask.mask(background, bbox_gdf['geometry'], crop=True)
     background_meta = background.meta  # Match cropped background img metadata with original background metadata
 
-    background_meta.update({"driver": "GTiff",  # update metadata for output img
+    background_meta.update({"driver": "GTiff",  # Update metadata for output img
                             "height": cropped_background_img.shape[1],
                             "width": cropped_background_img.shape[2],
                             "transform": background_transform})
@@ -300,19 +294,19 @@ def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=Fals
         dest.write(cropped_background_img)
     background.close()
 
-    cropped_background = rasterio.open("Material/background_output.tif", "r")  # opens cropped background
-    background_extent = plotting_extent(cropped_background)  # background_extent used for plotting
-    circle = np.ma.masked_where(radius_array == -100, radius_array)  # MASKING ELEVATION FILE TO PLOT CIRCULAR BUFFER
+    cropped_background = rasterio.open("Material/background_output.tif", "r")
+    background_extent = plotting_extent(cropped_background)  # Background_extent used for plotting
+    circle = np.ma.masked_where(radius_array == -100, radius_array)  # Masking elevation file to plot circular buffer
 
     # Masking background sea level values to re-colour
     removed_sea = np.ma.masked_where(cropped_background.read(1) == 65, cropped_background.read(1))
 
     # Plot everything:
     fig, ax = plt.subplots(figsize=(8, 6))
-    ax.set_facecolor("paleturquoise")  # Sets sea colour
-    ax.imshow(removed_sea, cmap="terrain", extent=background_extent)  # Plots cropped background
+    ax.set_facecolor("paleturquoise")  # Set sea colour
+    ax.imshow(removed_sea, cmap="terrain", extent=background_extent)  # Plot cropped background
 
-    if allow_near_edge is False:  # Plots elevation if inside the box
+    if allow_near_edge is False:  # Task 6 extension: plot elevation if inside the box
         elevation_radius = ax.imshow(circle, alpha=0.5, aspect=1, extent=background_extent, cmap="viridis")
         cbar = plt.colorbar(elevation_radius, orientation='vertical', fraction=0.025, pad=0.12)
         cbar.set_label('Elevation (m)')
