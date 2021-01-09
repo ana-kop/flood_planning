@@ -1,18 +1,19 @@
+import geopandas as gpd
 import json
+import matplotlib.pyplot as plt
 import networkx as nx
+import numpy as np
 import rasterio.mask
 from rasterio.plot import plotting_extent
-import matplotlib.pyplot as plt
-import geopandas as gpd
-from shapely.geometry import Point, MultiPoint, Polygon, box, LineString, MultiLineString
+from shapely.geometry import Point, MultiPoint, box, LineString, MultiLineString
 import shapely.ops
 from shapely.ops import linemerge
-import numpy as np
 from pyproj import Transformer
 import what3words
 
 
-def main(background_f, elevation_f, nodes_f, itn_f, allow_near_edge=False, input_options=False, island_checker=False):
+def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=False, allow_near_edge=False,
+         input_options=False):
     """Import data"""
     background = rasterio.open(background_f)
     elevation = rasterio.open(elevation_f)
@@ -60,6 +61,8 @@ def main(background_f, elevation_f, nodes_f, itn_f, allow_near_edge=False, input
 
             user_location = Point(x, y)
 
+        transformer = Transformer.from_crs("EPSG:4326", "EPSG:27700", always_xy=True)
+
         if option == 2:
             try:
                 lat_x = float(input("Please enter the latitude of your location: "))
@@ -71,7 +74,6 @@ def main(background_f, elevation_f, nodes_f, itn_f, allow_near_edge=False, input
             except ValueError:
                 lon_y = float(input("Please input a NUMBER. Please enter the Y-coordinate of your point: "))
 
-            transformer = Transformer.from_crs("EPSG:4326", "EPSG:27700", always_xy=True)
             output = transformer.transform(lat_x, lon_y)
             user_location = Point(output)
 
@@ -89,11 +91,6 @@ def main(background_f, elevation_f, nodes_f, itn_f, allow_near_edge=False, input
             output = transformer.transform(x, y)
             user_location = Point(output)
 
-    # Example point
-    # x = 451700
-    # y = 76700
-    # user_location = Point(x, y)
-
     # Test whether the user is within a box (430000, 80000) and (465000, 95000) - from Yolanda
     if allow_near_edge is False:
         if user_location.x <= 430000 or user_location.x >= 465000 \
@@ -105,26 +102,20 @@ def main(background_f, elevation_f, nodes_f, itn_f, allow_near_edge=False, input
 
     if allow_near_edge is True:
         print("Input accepted, finding the shortest route to high ground..."
-              " \n(Note: currently unable to display elevation map; only the shortest route will be displayed.")
+              " \n(Note: currently unable to display elevation map; only the shortest route will be displayed.)")
 
     # CREATIVITY TASK: testing whether user is in the sea
     if island_checker is True:
-        island = Polygon([(434850.7509994125, 84927.23067584241), (449462.99770897883, 74239.45175732416),
-                          (458723.82095974777, 76807.75243557827), (460010.6368919333, 83314.87513249158),
-                          (464431.30029569194, 85110.23192720435), (467915.930139642, 87767.57515393387),
-                          (464402.0421420072, 89464.7183125409), (463590.9486769136, 92356.02768650366),
-                          (459600.4027370182, 93759.04674112968), (456495.39969746437, 94111.18575803834),
-                          (451714.14825890266, 97443.14737321934), (447405.1474727208, 97402.29253511401),
-                          (442692.30447469145, 93448.81725825698), (439475.1444351155, 92771.15224291221),
-                          (437040.46308301215, 90989.0164612229), (432438.6417883015, 90426.69124035808),
-                          (427869.47200790537, 83530.15768859978), (434850.7509994125, 84927.23067584241)])
-
+        island_gpd = gpd.read_file(shape_f)
+        island = island_gpd['geometry'][0]
         if island.contains(user_location) is False:
-            print('Looks like you are not on the island. This app is only intended to be used on the Isle of Wight.')
+            print('Looks like you are not on the Isle of Wight. '
+                  'This app is only intended to be used on the Isle of Wight.')
             exit()
 
     """Task 2: Find highest point within 5km radius
     """
+
     # https://rasterio.readthedocs.io/en/latest/topics/masking-by-shapefile.html
     buf = user_location.buffer(5000)  # create 5km buffer polygon.
     buffer_gdf = gpd.GeoDataFrame({'geometry': buf}, index=[0],
@@ -353,6 +344,7 @@ if __name__ == "__main__":
     elevation_file = path + "/elevation/SZ.asc"
     nodes_file = path + "roads/nodes.shp"
     itn_file = path + "itn/solent_itn.json"
+    shape_file = path + "shape/isle_of_wight.shp"
 
-    main(background_file, elevation_file, nodes_file, itn_file,
-         allow_near_edge=False, input_options=False, island_checker=False)
+    main(background_file, elevation_file, nodes_file, itn_file, shape_file,
+         island_checker=True, allow_near_edge=True, input_options=False)
