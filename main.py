@@ -207,7 +207,7 @@ def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=Fals
     """Task 4: Shortest Path"""
 
     # Create an empty MultiDiGraph structure
-    G = nx.MultiDiGraph()
+    g = nx.MultiDiGraph()
 
     # Load the ITN data
     with open(itn_f) as f:
@@ -235,10 +235,10 @@ def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=Fals
 
         # Formula to calculate the weight of the node
         # - i.e. the time required to walk it according to the Naismith's rule.
-        time_to_walk = ((3 * length) / 250) + (elev / 10)
+        time_to_walk = ((3*length)/250) + (elev/10)
 
         # Adding edges with their corresponding weights to the graph
-        G.add_edge(road_links[link_fid]['start'], road_links[link_fid]['end'], fid=link_fid, weight=time_to_walk)
+        g.add_edge(road_links[link_fid]['start'], road_links[link_fid]['end'], fid=link_fid, weight=time_to_walk)
 
         # Calculate weights and add edges in the opposite direction
         road_coords_elev.reverse()
@@ -249,18 +249,18 @@ def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=Fals
             if b > a:
                 elev = elev + (b - a)
 
-        time_to_walk = ((3 * length) / 250) + (elev / 10)
-        G.add_edge(road_links[link_fid]['end'], road_links[link_fid]['start'], fid=link_fid, weight=time_to_walk)
+        time_to_walk = ((3*length)/250) + (elev/10)
+        g.add_edge(road_links[link_fid]['end'], road_links[link_fid]['start'], fid=link_fid, weight=time_to_walk)
 
     # Finding the shortest path using the dijkstra algorithm from networkx.
-    shortest_path = nx.dijkstra_path(G, nearest_node_user, nearest_node_highground, weight="weight")
+    shortest_path = nx.dijkstra_path(g, nearest_node_user, nearest_node_highground, weight="weight")
 
     # Converting the FIDs returned by the algorithm into a linestring for plotting; getting path length.
     # https://gis.stackexchange.com/questions/223447/weld-individual-line-segments-into-one-linestring-using-shapely
     shortest_path_lines = []
     path_length = 0
     for i, c in enumerate(shortest_path[:-1]):
-        fid = G.get_edge_data(c, shortest_path[i + 1])[0]['fid']
+        fid = g.get_edge_data(c, shortest_path[i + 1])[0]['fid']
         coords = road_links[fid]['coords']
         # Convert this road segment to a LineString and append it to the list shortest_path_lines
         shortest_path_lines.append(LineString(coords))
