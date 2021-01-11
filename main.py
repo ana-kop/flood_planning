@@ -27,12 +27,12 @@ def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=Fals
             x = float(input("Please enter the Easting coordinate of your location: "))
         # If user entered not a number and there is ValueError, then:
         except ValueError:
-            x = float(input("Please input a NUMBER. Please enter the X-coordinate of your point: "))
+            x = float(input("Please input a NUMBER. Please enter the Easting coordinate of your location: "))
 
         try:
             y = float(input("Please enter the Northing coordinate of your location: "))
         except ValueError:
-            y = float(input("Please input a NUMBER. Please enter the Y-coordinate of your point: "))
+            y = float(input("Please input a NUMBER. Please enter the Northing coordinate of your location: "))
 
         user_location = Point(x, y)
 
@@ -47,12 +47,12 @@ def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=Fals
             try:
                 x = float(input("Please enter the Easting coordinate of your location: "))
             except ValueError:
-                x = float(input("Please input a NUMBER. Please enter the X-coordinate of your point: "))
+                x = float(input("Please input a NUMBER. Please enter the Easting coordinate of your location: "))
 
             try:
                 y = float(input("Please enter the Northing coordinate of your location: "))
             except ValueError:
-                y = float(input("Please input a NUMBER. Please enter the Y-coordinate of your point: "))
+                y = float(input("Please input a NUMBER. Please enter the Northing coordinate of your location: "))
 
             user_location = Point(x, y)
 
@@ -62,12 +62,12 @@ def main(background_f, elevation_f, nodes_f, itn_f, shape_f, island_checker=Fals
             try:
                 lat_x = float(input("Please enter the latitude of your location: "))
             except ValueError:
-                lat_x = float(input("Please input a NUMBER. Please enter the X-coordinate of your point: "))
+                lat_x = float(input("Please input a NUMBER. Please enter the Easting coordinate of your location: "))
 
             try:
                 lon_y = float(input("Please enter the longitude of your location: "))
             except ValueError:
-                lon_y = float(input("Please input a NUMBER. Please enter the Y-coordinate of your point: "))
+                lon_y = float(input("Please input a NUMBER. Please enter the Northing coordinate of your location: "))
 
             # Transform the lat/lon coordinates into BNG using Transformer from pyproj
             output = transformer.transform(lat_x, lon_y)
